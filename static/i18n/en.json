@@ -1,0 +1,50 @@
+{
+  "app.title": "Pocket Portal",
+  "badge.lanOnly": "LAN-only",
+
+  "home.newRoom.title": "Create room",
+  "home.newRoom.subtitle": "Project / topic / demo",
+  "home.newRoom.placeholder": "e.g. NEXTGEN-RALLY — suspension bridge",
+  "home.newRoom.button": "Create",
+
+  "home.rooms.title": "Rooms",
+  "home.rooms.loading": "Loading…",
+  "home.rooms.refresh": "Refresh",
+  "home.rooms.count": "{count} rooms",
+  "home.rooms.open": "Open",
+  "home.rooms.updated": "Updated: {ts}",
+
+  "room.back": "← Rooms",
+  "room.rename.title": "Title",
+  "room.rename.subtitle": "Rename this room",
+  "room.rename.save": "Save title",
+
+  "room.actions.title": "Actions",
+  "room.actions.subtitle": "Checklists you can close",
+  "room.actions.placeholder": "Add an action…",
+  "room.actions.add": "Add",
+  "room.actions.todo": "todo",
+  "room.actions.done": "done",
+
+  "room.notes.title": "Notes",
+  "room.notes.subtitle": "Markdown (raw text in v0.1)",
+  "room.notes.save": "Save notes",
+
+  "room.artifacts.title": "Artifacts",
+  "room.artifacts.subtitle": "Links to demos (e.g. 3D viewer / HTML sandbox)",
+  "room.artifacts.titlePlaceholder": "Title",
+  "room.artifacts.urlPlaceholder": "URL (e.g. http://192.168.0.145:xxxx/demo)",
+  "room.artifacts.add": "Add artifact",
+
+  "room.audit.title": "Audit log",
+  "room.audit.subtitle": "Append-only. Short, explicit: decision / observation / change.",
+  "room.audit.inputPlaceholder": "Write one line…",
+  "room.audit.add": "Log",
+
+  "tip.share": "Tip: share a URL that points to an exact room + artifact/action.",
+
+  "kind.decision": "decision",
+  "kind.note": "note",
+  "kind.question": "question",
+  "kind.system": "system"
+}

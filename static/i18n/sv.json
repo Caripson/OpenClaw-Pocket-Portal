@@ -1,0 +1,50 @@
+{
+  "app.title": "Pocket Portal",
+  "badge.lanOnly": "LAN-only",
+
+  "home.newRoom.title": "Skapa rum",
+  "home.newRoom.subtitle": "Projekt / ämne / demo",
+  "home.newRoom.placeholder": "t.ex. NEXTGEN-RALLY — suspension bridge",
+  "home.newRoom.button": "Skapa",
+
+  "home.rooms.title": "Rum",
+  "home.rooms.loading": "Laddar…",
+  "home.rooms.refresh": "Uppdatera",
+  "home.rooms.count": "{count} st",
+  "home.rooms.open": "Öppna",
+  "home.rooms.updated": "Uppdaterad: {ts}",
+
+  "room.back": "← Rum",
+  "room.rename.title": "Titel",
+  "room.rename.subtitle": "Byt namn på rummet",
+  "room.rename.save": "Spara titel",
+
+  "room.actions.title": "Actions",
+  "room.actions.subtitle": "Checkboxar som går att stänga",
+  "room.actions.placeholder": "Lägg till action…",
+  "room.actions.add": "Lägg till",
+  "room.actions.todo": "todo",
+  "room.actions.done": "done",
+
+  "room.notes.title": "Notes",
+  "room.notes.subtitle": "Markdown (råtext i v0.1)",
+  "room.notes.save": "Spara notes",
+
+  "room.artifacts.title": "Artifacts",
+  "room.artifacts.subtitle": "Länkar till demos (t.ex. 3D viewer/HTML-sandbox)",
+  "room.artifacts.titlePlaceholder": "Titel",
+  "room.artifacts.urlPlaceholder": "URL (t.ex. http://192.168.0.145:xxxx/demo)",
+  "room.artifacts.add": "Lägg till artifact",
+
+  "room.audit.title": "Audit log",
+  "room.audit.subtitle": "Append-only. Kort, tydligt: beslut / observation / ändring.",
+  "room.audit.inputPlaceholder": "Skriv en rad…",
+  "room.audit.add": "Logga",
+
+  "tip.share": "Tips: dela alltid en URL som pekar på exakt rum + artifact/action.",
+
+  "kind.decision": "decision",
+  "kind.note": "note",
+  "kind.question": "question",
+  "kind.system": "system"
+}

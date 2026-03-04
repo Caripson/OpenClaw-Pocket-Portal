@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="sv">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -8,31 +8,31 @@
 </head>
 <body>
   <header>
-    <h1>Pocket Portal</h1>
-    <span class="badge">LAN-only</span>
+    <h1 id="appTitle">Pocket Portal</h1>
+    <span class="badge" id="lanBadge">LAN-only</span>
   </header>
 
   <div class="container">
     <div class="card">
       <div class="row">
         <div>
-          <div style="font-weight:700">Skapa nytt rum</div>
-          <div class="muted">Projekt / ämne / demo</div>
+          <div id="newRoomTitle" style="font-weight:700">Create room</div>
+          <div class="muted" id="newRoomSubtitle">Project / topic / demo</div>
         </div>
       </div>
       <div style="margin-top:10px" class="list">
-        <input id="newTitle" placeholder="t.ex. NEXTGEN-RALLY: suspension bridge" />
-        <button id="createBtn" class="primary">Skapa rum</button>
+        <input id="newTitle" placeholder="e.g. NEXTGEN-RALLY — suspension bridge" />
+        <button id="createBtn" class="primary">Create</button>
       </div>
     </div>
 
     <div class="card">
       <div class="row">
         <div>
-          <div style="font-weight:700">Rum</div>
-          <div class="muted" id="roomsMeta">Laddar…</div>
+          <div id="roomsTitle" style="font-weight:700">Rooms</div>
+          <div class="muted" id="roomsMeta">Loading…</div>
         </div>
-        <button id="refreshBtn" class="ghost">Uppdatera</button>
+        <button id="refreshBtn" class="ghost">Refresh</button>
       </div>
       <hr />
       <div id="rooms" class="list"></div>
@@ -41,12 +41,28 @@
     <div class="footer">v0.1 · Local-first · Johan + Moneypenny</div>
   </div>
 
-<script>
-async function api(path, opts={}) {
-  const res = await fetch(path, { headers: { 'content-type': 'application/json' }, ...opts });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
+<script type="module">
+import { loadI18n, api, escapeHtml } from '/static/app.js';
+
+const { t } = await loadI18n();
+
+// translate static bits
+
+document.title = t('app.title');
+document.documentElement.lang = 'en';
+
+document.getElementById('appTitle').textContent = t('app.title');
+document.getElementById('lanBadge').textContent = t('badge.lanOnly');
+
+document.getElementById('newRoomTitle').textContent = t('home.newRoom.title');
+document.getElementById('newRoomSubtitle').textContent = t('home.newRoom.subtitle');
+
+document.getElementById('newTitle').placeholder = t('home.newRoom.placeholder');
+document.getElementById('createBtn').textContent = t('home.newRoom.button');
+
+document.getElementById('roomsTitle').textContent = t('home.rooms.title');
+document.getElementById('roomsMeta').textContent = t('home.rooms.loading');
+document.getElementById('refreshBtn').textContent = t('home.rooms.refresh');
 
 function elRoom(r) {
   const a = document.createElement('a');
@@ -57,21 +73,12 @@ function elRoom(r) {
     <div class="row">
       <div>
         <div style="font-weight:700">${escapeHtml(r.title)}</div>
-        <div class="muted">Uppdaterad: ${new Date(r.updated_at).toLocaleString()}</div>
+        <div class="muted">${escapeHtml(t('home.rooms.updated', { ts: new Date(r.updated_at).toLocaleString() }))}</div>
       </div>
-      <div class="badge">Öppna</div>
+      <div class="badge">${escapeHtml(t('home.rooms.open'))}</div>
     </div>
   `;
   return a;
-}
-
-function escapeHtml(s){
-  return String(s)
-    .replaceAll('&','&amp;')
-    .replaceAll('<','&lt;')
-    .replaceAll('>','&gt;')
-    .replaceAll('"','&quot;')
-    .replaceAll("'",'&#39;');
 }
 
 async function loadRooms() {
@@ -80,7 +87,7 @@ async function loadRooms() {
   const wrap = document.getElementById('rooms');
   wrap.innerHTML = '';
   for (const r of rooms) wrap.appendChild(elRoom(r));
-  document.getElementById('roomsMeta').textContent = `${rooms.length} st`;
+  document.getElementById('roomsMeta').textContent = t('home.rooms.count', { count: rooms.length });
 }
 
 document.getElementById('refreshBtn').addEventListener('click', loadRooms);
