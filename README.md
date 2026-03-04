@@ -1,35 +1,59 @@
-# OpenClaw Pocket Portal
+# OpenClaw Pocket Portal (plugin)
 
 Local-first project portal for structured agent ↔ user collaboration.
 
-**LAN-only by default.** No auth. Intended for a trusted home network.
+**LAN-only by default** (you choose bind host). No auth. Intended for a trusted home network.
 
-## Features (v0.1)
-- “Rooms” (projects/topics) with:
-  - Notes (markdown raw text)
-  - Actions (checkbox tasks)
-  - Audit log (append-only)
-  - Artifacts (links to local demos/URLs)
-- SQLite storage
-- Health endpoint for watchdogs
+## What it is
+A lightweight “room” system:
+- Notes
+- Actions (checkbox)
+- Audit log (append-only)
+- Artifacts (links to demos/URLs)
 
-## Run (dev)
+## Runs as an OpenClaw plugin
+This is an **in-process plugin** (runs inside the OpenClaw Gateway process), but it starts its **own HTTP server** so you can bind it to a LAN IP without exposing the Gateway UI.
 
-```bash
-npm install
-HOST=0.0.0.0 PORT=4377 npm run dev
+## Install (local development)
+
+Clone into one of OpenClaw’s plugin discovery locations, e.g.:
+
+- `~/.openclaw/extensions/pocket-portal/`
+
+Then restart the gateway.
+
+## Configure
+In your OpenClaw config:
+
+```json5
+{
+  plugins: {
+    entries: {
+      "pocket-portal": {
+        enabled: true,
+        config: {
+          host: "192.168.0.145",
+          port: 4377,
+          basePath: "/"
+        }
+      }
+    }
+  }
+}
 ```
 
-Open:
-- `http://<your-lan-ip>:4377/`
+## Data storage
+Stored as a single JSON file (atomic writes) under the plugin state directory by default:
 
-## Storage
-- SQLite at `./data/pocket-portal.db` (created on first run)
+- `state:pocket-portal/pocket-portal.json`
 
-## Launchd templates (macOS)
-See `launchd/` for example LaunchAgent plists. **Edit paths + HOST/PORT** before installing.
+(You can override `dataFile`.)
 
-## Non-goals (for now)
-- Public internet exposure
-- Multi-user / permissions
-- Fancy WYSIWYG editor
+## Routes
+- UI: `/` and `/rooms/:id`
+- Static: `/static/*`
+- API: `/api/*`
+- Health: `/api/health`
+
+## License
+MIT

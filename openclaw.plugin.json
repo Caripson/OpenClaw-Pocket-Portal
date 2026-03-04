@@ -1,0 +1,26 @@
+{
+  "id": "pocket-portal",
+  "name": "Pocket Portal",
+  "description": "Local-first project portal (rooms, notes, actions, audit, artifacts)",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": { "type": "boolean", "default": true },
+      "host": { "type": "string", "default": "127.0.0.1" },
+      "port": { "type": "integer", "default": 4377, "minimum": 1, "maximum": 65535 },
+      "basePath": { "type": "string", "default": "/" },
+      "allowLan": { "type": "boolean", "default": true },
+      "dataFile": { "type": "string", "default": "state:pocket-portal/pocket-portal.json" }
+    }
+  },
+  "uiHints": {
+    "enabled": { "label": "Enabled" },
+    "host": { "label": "Bind host", "help": "Bind the Pocket Portal HTTP server (LAN IP recommended for iPhone-on-WiFi use)." },
+    "port": { "label": "Port" },
+    "basePath": { "label": "Base path", "help": "Mount path for UI + API (default: /)." },
+    "allowLan": { "label": "Allow LAN", "help": "If false, refuses non-loopback connections even if bound to LAN." },
+    "dataFile": { "label": "Data file", "help": "Supports state: relative paths (stored under plugin stateDir)." }
+  }
+}
