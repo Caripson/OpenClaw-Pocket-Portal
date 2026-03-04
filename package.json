@@ -1,0 +1,17 @@
+{
+  "name": "pocket-portal",
+  "version": "0.1.0",
+  "description": "Local-first portal for Johan + Moneypenny",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "node src/server.js",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2",
+    "express": "^5.2.1",
+    "nanoid": "^5.1.6",
+    "zod": "^4.3.6"
+  }
+}

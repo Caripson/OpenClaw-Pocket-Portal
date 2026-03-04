@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Room · Pocket Portal</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header>
+    <a href="/" class="badge">← Rum</a>
+    <h1 id="title">…</h1>
+    <span class="badge" id="roomId">…</span>
+  </header>
+
+  <div class="container">
+    <div class="card">
+      <div class="row">
+        <div>
+          <div style="font-weight:700">Titel</div>
+          <div class="muted">Byt namn på rummet</div>
+        </div>
+      </div>
+      <div style="margin-top:10px" class="list">
+        <input id="titleInput" />
+        <button id="saveTitle" class="primary">Spara titel</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <div style="font-weight:700">Actions</div>
+          <div class="muted">Checkboxar som går att stänga</div>
+        </div>
+      </div>
+      <div style="margin-top:10px" class="list">
+        <input id="newActionText" placeholder="Lägg till action…" />
+        <button id="addAction" class="primary">Lägg till</button>
+      </div>
+      <hr />
+      <div id="actions" class="list"></div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <div style="font-weight:700">Notes</div>
+          <div class="muted">Markdown (råtext i v0.1)</div>
+        </div>
+      </div>
+      <div style="margin-top:10px" class="list">
+        <textarea id="notes"></textarea>
+        <button id="saveNotes" class="primary">Spara notes</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <div style="font-weight:700">Artifacts</div>
+          <div class="muted">Länkar till demos (t.ex. 3D viewer/HTML-sandbox)</div>
+        </div>
+      </div>
+      <div style="margin-top:10px" class="list">
+        <input id="artifactTitle" placeholder="Titel" />
+        <input id="artifactUrl" placeholder="URL (t.ex. http://192.168.0.145:xxxx/demo)" />
+        <button id="addArtifact" class="primary">Lägg till artifact</button>
+      </div>
+      <hr />
+      <div id="artifacts" class="list"></div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <div style="font-weight:700">Audit log</div>
+          <div class="muted">Append-only. Kort, tydligt: beslut / observation / ändring.</div>
+        </div>
+      </div>
+      <div style="margin-top:10px" class="list">
+        <select id="auditKind">
+          <option value="decision">decision</option>
+          <option value="note">note</option>
+          <option value="question">question</option>
+          <option value="system">system</option>
+        </select>
+        <input id="auditMsg" placeholder="Skriv en rad…" />
+        <button id="addAudit" class="primary">Logga</button>
+      </div>
+      <hr />
+      <div id="audit" class="list"></div>
+    </div>
+
+    <div class="footer">Tips: dela alltid en URL som pekar på exakt rum + artifact/action.</div>
+  </div>
+
+<script>
+const roomId = location.pathname.split('/').pop();
+
+async function api(path, opts={}) {
+  const res = await fetch(path, { headers: { 'content-type': 'application/json' }, ...opts });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+function escapeHtml(s){
+  return String(s)
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'",'&#39;');
+}
+
+function render(out) {
+  document.getElementById('title').textContent = out.room.title;
+  document.getElementById('roomId').textContent = out.room.id;
+  document.getElementById('titleInput').value = out.room.title;
+  document.getElementById('notes').value = out.note.markdown || '';
+
+  const actions = document.getElementById('actions');
+  actions.innerHTML = '';
+  for (const a of out.actions) {
+    const div = document.createElement('div');
+    div.className = 'item card';
+    div.style.margin = '0';
+    div.innerHTML = `
+      <input type="checkbox" ${a.done ? 'checked' : ''} data-id="${a.id}" style="margin-top:4px" />
+      <div class="grow">
+        <div style="font-weight:600;opacity:${a.done?0.6:1}">${escapeHtml(a.text)}</div>
+        <div class="muted">${new Date(a.created_at).toLocaleString()}</div>
+      </div>
+      <span class="badge ${a.done ? 'ok' : ''}">${a.done ? 'done' : 'todo'}</span>
+    `;
+    actions.appendChild(div);
+  }
+
+  const audit = document.getElementById('audit');
+  audit.innerHTML = '';
+  for (const e of out.audit) {
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.style.margin='0';
+    div.innerHTML = `
+      <div class="row">
+        <span class="badge">${escapeHtml(e.kind)}</span>
+        <span class="muted">${new Date(e.created_at).toLocaleString()}</span>
+      </div>
+      <div class="small" style="margin-top:8px">${escapeHtml(e.message)}</div>
+    `;
+    audit.appendChild(div);
+  }
+
+  const arts = document.getElementById('artifacts');
+  arts.innerHTML = '';
+  for (const ar of out.artifacts) {
+    const div = document.createElement('a');
+    div.href = ar.url;
+    div.target = '_blank';
+    div.rel = 'noreferrer';
+    div.className = 'card';
+    div.style.display='block';
+    div.style.margin='0';
+    div.innerHTML = `
+      <div style="font-weight:700">${escapeHtml(ar.title)}</div>
+      <div class="muted" style="margin-top:6px">${escapeHtml(ar.url)}</div>
+    `;
+    arts.appendChild(div);
+  }
+}
+
+async function load() {
+  const out = await api(`/api/rooms/${roomId}`);
+  render(out);
+}
+
+// handlers
+
+document.getElementById('saveTitle').addEventListener('click', async () => {
+  const title = document.getElementById('titleInput').value.trim();
+  if (!title) return;
+  await api(`/api/rooms/${roomId}/title`, { method: 'POST', body: JSON.stringify({ title }) });
+  await load();
+});
+
+
+document.getElementById('addAction').addEventListener('click', async () => {
+  const el = document.getElementById('newActionText');
+  const text = el.value.trim();
+  if (!text) return;
+  await api(`/api/rooms/${roomId}/actions`, { method: 'POST', body: JSON.stringify({ text }) });
+  el.value='';
+  await load();
+});
+
+
+document.getElementById('actions').addEventListener('change', async (e) => {
+  const cb = e.target;
+  if (cb && cb.matches('input[type=checkbox][data-id]')) {
+    await api(`/api/actions/${cb.dataset.id}/toggle`, { method: 'POST', body: '{}' });
+    await load();
+  }
+});
+
+
+document.getElementById('saveNotes').addEventListener('click', async () => {
+  const markdown = document.getElementById('notes').value;
+  await api(`/api/rooms/${roomId}/notes`, { method: 'POST', body: JSON.stringify({ markdown }) });
+  await load();
+});
+
+
+document.getElementById('addAudit').addEventListener('click', async () => {
+  const kind = document.getElementById('auditKind').value;
+  const msgEl = document.getElementById('auditMsg');
+  const message = msgEl.value.trim();
+  if (!message) return;
+  await api(`/api/rooms/${roomId}/audit`, { method: 'POST', body: JSON.stringify({ kind, message }) });
+  msgEl.value='';
+  await load();
+});
+
+
+document.getElementById('addArtifact').addEventListener('click', async () => {
+  const title = document.getElementById('artifactTitle').value.trim();
+  const url = document.getElementById('artifactUrl').value.trim();
+  if (!title || !url) return;
+  await api(`/api/rooms/${roomId}/artifacts`, { method: 'POST', body: JSON.stringify({ title, url }) });
+  document.getElementById('artifactTitle').value='';
+  document.getElementById('artifactUrl').value='';
+  await load();
+});
+
+load();
+</script>
+</body>
+</html>
