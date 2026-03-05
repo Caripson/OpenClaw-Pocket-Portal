@@ -16,11 +16,24 @@ This is an **in-process plugin** (runs inside the OpenClaw Gateway process), but
 
 ## Install (local development)
 
+### Option A: discovery path (fastest)
+
 Clone into one of OpenClaw’s plugin discovery locations, e.g.:
 
 - `~/.openclaw/extensions/pocket-portal/`
 
 Then restart the gateway.
+
+### Option B: CLI install (recommended when testing install flow)
+
+From a local checkout:
+
+```bash
+openclaw plugins install /absolute/path/to/OpenClaw-Pocket-Portal
+openclaw gateway restart
+```
+
+> Note: OpenClaw treats untracked local plugins as "trusted code". For a strict setup, pin trust with `plugins.allow: ["pocket-portal"]`.
 
 ## Configure
 In your OpenClaw config:
