@@ -34,6 +34,12 @@
         </div>
         <button id="refreshBtn" class="ghost">Refresh</button>
       </div>
+
+      <div style="margin-top:10px" class="list">
+        <div class="muted" id="searchLabel">Search</div>
+        <input id="searchInput" placeholder="Search rooms (title or tags)…" />
+      </div>
+
       <hr />
       <div id="rooms" class="list"></div>
     </div>
@@ -64,6 +70,9 @@ document.getElementById('roomsTitle').textContent = t('home.rooms.title');
 document.getElementById('roomsMeta').textContent = t('home.rooms.loading');
 document.getElementById('refreshBtn').textContent = t('home.rooms.refresh');
 
+document.getElementById('searchLabel').textContent = t('home.search.label');
+document.getElementById('searchInput').placeholder = t('home.search.placeholder');
+
 function elRoom(r) {
   const a = document.createElement('a');
   a.href = `/rooms/${r.id}`;
@@ -81,8 +90,9 @@ function elRoom(r) {
   return a;
 }
 
-async function loadRooms() {
-  const out = await api('/api/rooms');
+async function loadRooms(query = '') {
+  const q = String(query || '').trim();
+  const out = q ? await api(`/api/search?query=${encodeURIComponent(q)}`) : await api('/api/rooms');
   const rooms = out.rooms || [];
   const wrap = document.getElementById('rooms');
   wrap.innerHTML = '';
@@ -90,7 +100,13 @@ async function loadRooms() {
   document.getElementById('roomsMeta').textContent = t('home.rooms.count', { count: rooms.length });
 }
 
-document.getElementById('refreshBtn').addEventListener('click', loadRooms);
+document.getElementById('refreshBtn').addEventListener('click', () => loadRooms(document.getElementById('searchInput').value));
+
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  // Simple debounce
+  clearTimeout(window.__ppSearchT);
+  window.__ppSearchT = setTimeout(() => loadRooms(e.target.value), 150);
+});
 
 document.getElementById('createBtn').addEventListener('click', async () => {
   const titleEl = document.getElementById('newTitle');

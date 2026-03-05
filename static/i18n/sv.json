@@ -14,6 +14,14 @@
   "home.rooms.open": "Öppna",
   "home.rooms.updated": "Uppdaterad: {ts}",
 
+  "home.search.label": "Sök",
+  "home.search.placeholder": "Sök rum (titel eller taggar)…",
+
+  "room.tags.title": "Taggar",
+  "room.tags.subtitle": "Kommaseparerat",
+  "room.tags.placeholder": "t.ex. cms, 3d, nextgen",
+  "room.tags.save": "Spara taggar",
+
   "room.back": "← Rum",
   "room.rename.title": "Titel",
   "room.rename.subtitle": "Byt namn på rummet",

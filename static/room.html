@@ -30,6 +30,19 @@
     <div class="card">
       <div class="row">
         <div>
+          <div id="tagsTitle" style="font-weight:700">Tags</div>
+          <div class="muted" id="tagsSubtitle">Comma-separated</div>
+        </div>
+      </div>
+      <div style="margin-top:10px" class="list">
+        <input id="tagsInput" placeholder="e.g. cms, 3d, nextgen" />
+        <button id="saveTags" class="primary">Save tags</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
           <div id="actionsTitle" style="font-weight:700">Actions</div>
           <div class="muted" id="actionsSubtitle">Checklists you can close</div>
         </div>
@@ -109,6 +122,11 @@ document.getElementById('renameTitle').textContent = t('room.rename.title');
 document.getElementById('renameSubtitle').textContent = t('room.rename.subtitle');
 document.getElementById('saveTitle').textContent = t('room.rename.save');
 
+document.getElementById('tagsTitle').textContent = t('room.tags.title');
+document.getElementById('tagsSubtitle').textContent = t('room.tags.subtitle');
+document.getElementById('tagsInput').placeholder = t('room.tags.placeholder');
+document.getElementById('saveTags').textContent = t('room.tags.save');
+
 document.getElementById('actionsTitle').textContent = t('room.actions.title');
 document.getElementById('actionsSubtitle').textContent = t('room.actions.subtitle');
 document.getElementById('newActionText').placeholder = t('room.actions.placeholder');
@@ -141,6 +159,7 @@ function render(out) {
   document.getElementById('roomId').textContent = out.room.id;
   document.getElementById('titleInput').value = out.room.title;
   document.getElementById('notes').value = out.note.markdown || '';
+  document.getElementById('tagsInput').value = (out.room.tags || []).join(', ');
 
   const actions = document.getElementById('actions');
   actions.innerHTML = '';
@@ -204,6 +223,18 @@ document.getElementById('saveTitle').addEventListener('click', async () => {
   const title = document.getElementById('titleInput').value.trim();
   if (!title) return;
   await api(`/api/rooms/${roomId}/title`, { method: 'POST', body: JSON.stringify({ title }) });
+  await load();
+});
+
+
+document.getElementById('saveTags').addEventListener('click', async () => {
+  const raw = document.getElementById('tagsInput').value;
+  const tags = raw
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .slice(0, 25);
+  await api(`/api/rooms/${roomId}/tags`, { method: 'POST', body: JSON.stringify({ tags }) });
   await load();
 });
 

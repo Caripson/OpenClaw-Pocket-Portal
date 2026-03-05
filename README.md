@@ -60,13 +60,47 @@ Stored as a single JSON file (atomic writes) under the plugin state directory by
 
 - `state:pocket-portal/pocket-portal.json`
 
+**Schema includes:**
+- Rooms with tags
+- Comments (room-level threads)
+- Notes, Actions, Audit, Artifacts (existing)
+
 (You can override `dataFile`.)
 
 ## Routes
 - UI: `/` and `/rooms/:id`
-- Static: `/static/*`
+- Static: `/static/*` (includes i18n: `en.json`, `sv.json`)
 - API: `/api/*`
+  - `/api/rooms` - GET (list), POST (create)
+  - `/api/rooms/:id` - GET (details)
+  - `/api/rooms/:id/title` - POST (update title + tags)
+  - `/api/rooms/:id/tags` - GET (view), POST (update)
+  - `/api/rooms/:id/comments` - GET (list), POST (add)
+  - `/api/rooms/:id/actions` - POST (add)
+  - `/api/actions/:id/toggle` - POST (toggle done)
+  - `/api/rooms/:id/notes` - POST (update)
+  - `/api/rooms/:id/artifacts` - POST (add)
+  - `/api/rooms/:id/audit` - POST (add)
+  - `/api/search` - GET (search by title/tags)
 - Health: `/api/health`
+
+
+## New Features (MVP)
+### Room Tags & Search
+- Rooms now support tags (comma-separated)
+- Search API: `/api/search?query=...` filters by title or tags
+- Tag management: GET/POST `/api/rooms/:id/tags`
+
+### Room-Level Comments
+- Threaded comments per room
+- API: GET/POST `/api/rooms/:id/comments`
+- Comments have optional author, message, and timestamp
+- Included in room details API
+
+### i18n Support
+- English (en.json) and Swedish (sv.json) translations
+- Covers all UI text, labels, and messages
+- Static files served from `/static/`
 
 ## License
 MIT

@@ -14,6 +14,14 @@
   "home.rooms.open": "Open",
   "home.rooms.updated": "Updated: {ts}",
 
+  "home.search.label": "Search",
+  "home.search.placeholder": "Search rooms (title or tags)…",
+
+  "room.tags.title": "Tags",
+  "room.tags.subtitle": "Comma-separated",
+  "room.tags.placeholder": "e.g. cms, 3d, nextgen",
+  "room.tags.save": "Save tags",
+
   "room.back": "← Rooms",
   "room.rename.title": "Title",
   "room.rename.subtitle": "Rename this room",

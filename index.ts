@@ -24,7 +24,25 @@ const ConfigSchema = z.object({
   dataFile: z.string().default("state:pocket-portal/pocket-portal.json"),
 });
 
-type Room = { id: string; title: string; created_at: string; updated_at: string };
+type Room = { id: string; title: string; created_at: string; updated_at: string; tags: string[] };
+
+type Action = { id: string; room_id: string; text: string; done: boolean; created_at: string; updated_at: string };
+
+type Comment = { id: string; room_id: string; author?: string; message: string; created_at: string };
+
+type Audit = { id: string; room_id: string; kind: string; message: string; created_at: string };
+
+type Artifact = { id: string; room_id: string; title: string; url: string; created_at: string };
+
+type PortalDb = {
+  version: 1;
+  rooms: Room[];
+  comments: Record<string, Comment[]>;
+  notes: Record<string, { markdown: string; updated_at: string }>;
+  actions: Action[];
+  audit: Audit[];
+  artifacts: Artifact[];
+};
 type Action = { id: string; room_id: string; text: string; done: boolean; created_at: string; updated_at: string };
 type Audit = { id: string; room_id: string; kind: string; message: string; created_at: string };
 type Artifact = { id: string; room_id: string; title: string; url: string; created_at: string };
@@ -101,13 +119,14 @@ function loadDb(filePath: string): PortalDb {
     return {
       version: 1,
       rooms: Array.isArray(parsed.rooms) ? parsed.rooms : [],
+      comments: parsed.comments && typeof parsed.comments === "object" ? parsed.comments : {},
       notes: parsed.notes && typeof parsed.notes === "object" ? parsed.notes : {},
       actions: Array.isArray(parsed.actions) ? parsed.actions : [],
       audit: Array.isArray(parsed.audit) ? parsed.audit : [],
       artifacts: Array.isArray(parsed.artifacts) ? parsed.artifacts : [],
     };
   } catch {
-    return { version: 1, rooms: [], notes: {}, actions: [], audit: [], artifacts: [] };
+    return { version: 1, rooms: [], comments: {}, notes: {}, actions: [], audit: [], artifacts: [] };
   }
 }
 
@@ -242,8 +261,9 @@ export default function (api: OpenClawPluginApi) {
             const db = loadDb(dataPath);
             const id = nanoid();
             const ts = now();
-            db.rooms.push({ id, title: parsed.data.title, created_at: ts, updated_at: ts });
+            db.rooms.push({ id, title: parsed.data.title, created_at: ts, updated_at: ts, tags: [] });
             db.notes[id] = { markdown: "", updated_at: ts };
+            db.comments[id] = [];
             db.audit.push({ id: nanoid(), room_id: id, kind: "system", message: "Room created", created_at: ts });
             saveDb(dataPath, db);
             sendJson(res, 200, { id });
@@ -263,12 +283,71 @@ export default function (api: OpenClawPluginApi) {
             const actions = db.actions.filter((a) => a.room_id === roomId).sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
             const audit = db.audit.filter((e) => e.room_id === roomId).sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 200);
             const artifacts = db.artifacts.filter((a) => a.room_id === roomId).sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-            sendJson(res, 200, { room, note, actions, audit, artifacts });
+            const comments = db.comments[roomId] || [];
+            sendJson(res, 200, { room, note, actions, audit, artifacts, comments });
             return;
           }
 
           const titleMatch = pathname.match(/^\/api\/rooms\/([^/]+)\/title$/);
           if (titleMatch && req.method === "POST") {
+            const body = await readBody(req);
+            const parsed = z.object({ title: z.string().min(1).max(200), tags: z.array(z.string()).optional() }).safeParse(JSON.parse(body || "{}"));
+            if (!parsed.success) {
+              sendJson(res, 400, { error: parsed.error.flatten() });
+              return;
+            }
+            const db = loadDb(dataPath);
+            const room = roomById(db, roomId);
+            if (!room) return sendJson(res, 404, { error: "not_found" });
+            room.title = parsed.data.title;
+            if (parsed.data.tags) room.tags = parsed.data.tags;
+            room.updated_at = now();
+            db.audit.push({ id: nanoid(), room_id: roomId, kind: "edit", message: `Title changed to: ${parsed.data.title}`, created_at: room.updated_at });
+            saveDb(dataPath, db);
+            sendJson(res, 200, { ok: true });
+            return;
+          }
+
+          const tagsMatch = pathname.match(/^\/api\/rooms\/([^/]+)\/tags$/);
+          if (tagsMatch && req.method === "GET") {
+            const roomId = tagsMatch[1];
+            const db = loadDb(dataPath);
+            const room = roomById(db, roomId);
+            if (!room) return sendJson(res, 404, { error: "not_found" });
+            sendJson(res, 200, { tags: room.tags });
+            return;
+          }
+
+          if (tagsMatch && req.method === "POST") {
+            const roomId = tagsMatch[1];
+            const body = await readBody(req);
+            const parsed = z.object({ tags: z.array(z.string()).min(0) }).safeParse(JSON.parse(body || "{}"));
+            if (!parsed.success) {
+              sendJson(res, 400, { error: parsed.error.flatten() });
+              return;
+            }
+            const db = loadDb(dataPath);
+            const room = roomById(db, roomId);
+            if (!room) return sendJson(res, 404, { error: "not_found" });
+            room.tags = parsed.data.tags;
+            room.updated_at = now();
+            db.audit.push({ id: nanoid(), room_id: roomId, kind: "edit", message: `Tags updated: ${parsed.data.tags.join(', ')}`, created_at: room.updated_at });
+            saveDb(dataPath, db);
+            sendJson(res, 200, { ok: true });
+            return;
+          }
+
+          const searchMatch = pathname.match(/^\/api\/search$/);
+          if (searchMatch && req.method === "GET") {
+            const query = req.url?.split('?')[1]?.split('=')[1] || '';
+            const db = loadDb(dataPath);
+            const filteredRooms = db.rooms.filter(room => 
+              room.title.toLowerCase().includes(query.toLowerCase()) ||
+              room.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase()))
+            ).sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
+            sendJson(res, 200, { rooms: filteredRooms });
+            return;
+          }
             const roomId = titleMatch[1];
             const body = await readBody(req);
             const parsed = z.object({ title: z.string().min(1).max(200) }).safeParse(JSON.parse(body || "{}"));
@@ -369,6 +448,59 @@ export default function (api: OpenClawPluginApi) {
 
           const artifactsMatch = pathname.match(/^\/api\/rooms\/([^/]+)\/artifacts$/);
           if (artifactsMatch && req.method === "POST") {
+            const roomId = artifactsMatch[1];
+            const body = await readBody(req);
+            const parsed = z.object({ title: z.string().min(1).max(200), url: z.string().min(1).max(2000) }).safeParse(JSON.parse(body || "{}"));
+            if (!parsed.success) {
+              sendJson(res, 400, { error: parsed.error.flatten() });
+              return;
+            }
+            const db = loadDb(dataPath);
+            const room = roomById(db, roomId);
+            if (!room) return sendJson(res, 404, { error: "not_found" });
+            const ts = now();
+            const id = nanoid();
+            db.artifacts.push({ id, room_id: roomId, title: parsed.data.title, url: parsed.data.url, created_at: ts });
+            room.updated_at = ts;
+            db.audit.push({ id: nanoid(), room_id: roomId, kind: "artifact", message: `Artifact added: ${parsed.data.title}`, created_at: ts });
+            saveDb(dataPath, db);
+            sendJson(res, 200, { id });
+            return;
+          }
+
+          const commentsMatch = pathname.match(/^\/api\/rooms\/([^/]+)\/comments$/);
+          if (commentsMatch && req.method === "GET") {
+            const roomId = commentsMatch[1];
+            const db = loadDb(dataPath);
+            const room = roomById(db, roomId);
+            if (!room) return sendJson(res, 404, { error: "not_found" });
+            const comments = db.comments[roomId] || [];
+            sendJson(res, 200, { comments });
+            return;
+          }
+
+          if (commentsMatch && req.method === "POST") {
+            const roomId = commentsMatch[1];
+            const body = await readBody(req);
+            const parsed = z.object({ author: z.string().optional(), message: z.string().min(1).max(2000) }).safeParse(JSON.parse(body || "{}"));
+            if (!parsed.success) {
+              sendJson(res, 400, { error: parsed.error.flatten() });
+              return;
+            }
+            const db = loadDb(dataPath);
+            const room = roomById(db, roomId);
+            if (!room) return sendJson(res, 404, { error: "not_found" });
+            const ts = now();
+            const id = nanoid();
+            const comment: Comment = { id, room_id: roomId, author: parsed.data.author, message: parsed.data.message, created_at: ts };
+            if (!db.comments[roomId]) db.comments[roomId] = [];
+            db.comments[roomId].push(comment);
+            room.updated_at = ts;
+            db.audit.push({ id: nanoid(), room_id: roomId, kind: "comment", message: `Comment added: ${parsed.data.message.substring(0, 50)}...`, created_at: ts });
+            saveDb(dataPath, db);
+            sendJson(res, 200, { id });
+            return;
+          }
             const roomId = artifactsMatch[1];
             const body = await readBody(req);
             const parsed = z.object({ title: z.string().min(1).max(200), url: z.string().min(1).max(2000) }).safeParse(JSON.parse(body || "{}"));
