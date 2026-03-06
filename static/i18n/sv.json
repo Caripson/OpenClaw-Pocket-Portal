@@ -48,7 +48,8 @@
   "room.artifacts.title": "Artifacts",
   "room.artifacts.subtitle": "Länkar till demos (t.ex. 3D viewer/HTML-sandbox)",
   "room.artifacts.titlePlaceholder": "Titel",
-  "room.artifacts.urlPlaceholder": "URL (t.ex. http://192.168.0.145:xxxx/demo)",
+  "room.artifacts.urlPlaceholder": "URL (valfritt, klistra in länk)",
+  "room.artifacts.filePlaceholder": "Eller ladda upp en fil",
   "room.artifacts.add": "Lägg till artifact",
 
   "room.audit.title": "Audit log",

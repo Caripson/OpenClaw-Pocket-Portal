@@ -79,7 +79,8 @@ Stored as a single JSON file (atomic writes) under the plugin state directory by
   - `/api/rooms/:id/actions` - POST (add)
   - `/api/actions/:id/toggle` - POST (toggle done)
   - `/api/rooms/:id/notes` - POST (update)
-  - `/api/rooms/:id/artifacts` - POST (add)
+  - `/api/rooms/:id/artifacts` - POST (add link)
+  - `/api/rooms/:id/artifacts/upload` - POST (upload file)
   - `/api/rooms/:id/audit` - POST (add)
   - `/api/search` - GET (search by title/tags)
 - Health: `/api/health`

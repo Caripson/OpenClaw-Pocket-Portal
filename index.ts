@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { nanoid } from "nanoid";
+import Busboy from "busboy";
 import type { OpenClawPluginApi, OpenClawPluginServiceContext } from "openclaw/plugin-sdk";
 
 type PortalConfig = {
@@ -182,6 +183,44 @@ function parseQuery(req: http.IncomingMessage): URLSearchParams {
   }
 }
 
+function sanitizeFilename(name: string): string {
+  const base = path.basename(name || "upload");
+  return base.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "upload";
+}
+
+async function handleMultipartUpload(req: http.IncomingMessage): Promise<{ fields: Record<string, string>; file?: { filename: string; mimeType: string; buf: Buffer } }> {
+  const bb = Busboy({ headers: req.headers, limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 10 } });
+  const fields: Record<string, string> = {};
+  let file: { filename: string; mimeType: string; buf: Buffer } | undefined;
+
+  await new Promise<void>((resolve, reject) => {
+    bb.on("field", (name, val) => {
+      fields[name] = String(val ?? "");
+    });
+
+    bb.on("file", (_name, stream, info) => {
+      const chunks: Buffer[] = [];
+      stream.on("data", (d: Buffer) => chunks.push(d));
+      stream.on("limit", () => reject(new Error("file_too_large")));
+      stream.on("end", () => {
+        file = {
+          filename: sanitizeFilename(info.filename || "upload"),
+          mimeType: info.mimeType || "application/octet-stream",
+          buf: Buffer.concat(chunks),
+        };
+      });
+      stream.on("error", reject);
+    });
+
+    bb.on("finish", () => resolve());
+    bb.on("error", reject);
+
+    req.pipe(bb);
+  });
+
+  return { fields, file };
+}
+
 export default function (api: OpenClawPluginApi) {
   api.registerService({
     id: "pocket-portal",
@@ -233,6 +272,20 @@ export default function (api: OpenClawPluginApi) {
           }
           if (req.method === "GET" && pathname.startsWith("/rooms/")) {
             sendFile(res, path.join(staticDir, "room.html"));
+            return;
+          }
+
+          // Uploaded files (stored under state dir)
+          if (req.method === "GET" && pathname.startsWith("/uploads/")) {
+            const rel = pathname.slice("/uploads/".length);
+            const uploadsDir = path.join(ctx.stateDir, "pocket-portal", "uploads");
+            const fp = path.resolve(uploadsDir, rel);
+            if (!fp.startsWith(path.resolve(uploadsDir) + path.sep) && fp !== path.resolve(uploadsDir)) {
+              res.statusCode = 400;
+              res.end("Bad Request");
+              return;
+            }
+            sendFile(res, fp);
             return;
           }
 
@@ -415,6 +468,37 @@ export default function (api: OpenClawPluginApi) {
 
             saveDb(dataPath, db);
             sendJson(res, 200, { ok: true, done: action.done });
+            return;
+          }
+
+          const artifactUploadMatch = pathname.match(/^\/api\/rooms\/([^/]+)\/artifacts\/upload$/);
+          if (artifactUploadMatch && req.method === "POST") {
+            const roomId = artifactUploadMatch[1];
+            const db = loadDb(dataPath);
+            const room = roomById(db, roomId);
+            if (!room) return sendJson(res, 404, { error: "not_found" });
+
+            const { fields, file } = await handleMultipartUpload(req);
+            if (!file) return sendJson(res, 400, { error: "no_file" });
+
+            const title = String(fields.title || file.filename).trim().slice(0, 200);
+            const ts = now();
+            const id = nanoid();
+
+            const uploadsDir = path.join(ctx.stateDir, "pocket-portal", "uploads", roomId);
+            fs.mkdirSync(uploadsDir, { recursive: true });
+            const diskName = `${id}-${file.filename}`;
+            const diskPath = path.join(uploadsDir, diskName);
+            fs.writeFileSync(diskPath, file.buf);
+
+            const url = withBase(basePath, `/uploads/${encodeURIComponent(roomId)}/${encodeURIComponent(diskName)}`);
+
+            db.artifacts.push({ id, room_id: roomId, title, url, created_at: ts });
+            room.updated_at = ts;
+            db.audit.push({ id: nanoid(), room_id: roomId, kind: "artifact", message: `Artifact uploaded: ${title}`, created_at: ts });
+            saveDb(dataPath, db);
+
+            sendJson(res, 200, { id, url });
             return;
           }
 

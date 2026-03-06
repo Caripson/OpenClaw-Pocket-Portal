@@ -4,6 +4,7 @@
   "description": "OpenClaw Pocket Portal plugin (local-first rooms/actions/audit)",
   "type": "module",
   "dependencies": {
+    "busboy": "^1.6.0",
     "nanoid": "^5.1.6",
     "zod": "^4.3.6"
   },
