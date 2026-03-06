@@ -38,6 +38,13 @@
   "room.notes.subtitle": "Markdown (råtext i v0.1)",
   "room.notes.save": "Spara notes",
 
+  "room.comments.title": "Kommentarer",
+  "room.comments.subtitle": "Tråd för rummet",
+  "room.comments.authorPlaceholder": "Ditt namn (valfritt)",
+  "room.comments.messagePlaceholder": "Skriv en kommentar…",
+  "room.comments.add": "Posta",
+  "room.comments.anonymous": "Anonym",
+
   "room.artifacts.title": "Artifacts",
   "room.artifacts.subtitle": "Länkar till demos (t.ex. 3D viewer/HTML-sandbox)",
   "room.artifacts.titlePlaceholder": "Titel",
