@@ -38,6 +38,13 @@
   "room.notes.subtitle": "Markdown (raw text in v0.1)",
   "room.notes.save": "Save notes",
 
+  "room.comments.title": "Comments",
+  "room.comments.subtitle": "Room thread",
+  "room.comments.authorPlaceholder": "Your name (optional)",
+  "room.comments.messagePlaceholder": "Write a comment…",
+  "room.comments.add": "Post",
+  "room.comments.anonymous": "Anonymous",
+
   "room.artifacts.title": "Artifacts",
   "room.artifacts.subtitle": "Links to demos (e.g. 3D viewer / HTML sandbox)",
   "room.artifacts.titlePlaceholder": "Title",
