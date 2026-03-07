@@ -59,6 +59,13 @@
 
   "tip.share": "Tip: share a URL that points to an exact room + artifact/action.",
 
+  "viewer.title": "3D Viewer",
+  "viewer.back": "← Room",
+  "viewer.openRaw": "Open raw file",
+  "viewer.reload": "Reload",
+  "viewer.hint": "Tip: GLB works best (single file). Plain .gltf may reference external .bin/textures which must be reachable.",
+  "viewer.noSrc": "No model src provided.",
+
   "kind.decision": "decision",
   "kind.note": "note",
   "kind.question": "question",

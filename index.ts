@@ -139,6 +139,8 @@ function contentTypeFor(p: string): string {
   if (p.endsWith(".png")) return "image/png";
   if (p.endsWith(".jpg") || p.endsWith(".jpeg")) return "image/jpeg";
   if (p.endsWith(".svg")) return "image/svg+xml";
+  if (p.endsWith(".glb")) return "model/gltf-binary";
+  if (p.endsWith(".gltf")) return "model/gltf+json";
   return "application/octet-stream";
 }
 
@@ -272,6 +274,10 @@ export default function (api: OpenClawPluginApi) {
           }
           if (req.method === "GET" && pathname.startsWith("/rooms/")) {
             sendFile(res, path.join(staticDir, "room.html"));
+            return;
+          }
+          if (req.method === "GET" && pathname === "/viewer") {
+            sendFile(res, path.join(staticDir, "viewer.html"));
             return;
           }
 
