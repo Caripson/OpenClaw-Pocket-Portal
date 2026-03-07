@@ -38,10 +38,18 @@
   "room.notes.subtitle": "Markdown (raw text in v0.1)",
   "room.notes.save": "Save notes",
 
+  "room.comments.title": "Comments",
+  "room.comments.subtitle": "Room thread",
+  "room.comments.authorPlaceholder": "Your name (optional)",
+  "room.comments.messagePlaceholder": "Write a comment…",
+  "room.comments.add": "Post",
+  "room.comments.anonymous": "Anonymous",
+
   "room.artifacts.title": "Artifacts",
   "room.artifacts.subtitle": "Links to demos (e.g. 3D viewer / HTML sandbox)",
   "room.artifacts.titlePlaceholder": "Title",
-  "room.artifacts.urlPlaceholder": "URL (e.g. http://192.168.0.145:xxxx/demo)",
+  "room.artifacts.urlPlaceholder": "URL (optional, paste a link)",
+  "room.artifacts.filePlaceholder": "Or upload a file",
   "room.artifacts.add": "Add artifact",
 
   "room.audit.title": "Audit log",

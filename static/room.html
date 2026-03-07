@@ -71,13 +71,30 @@
     <div class="card">
       <div class="row">
         <div>
+          <div id="commentsTitle" style="font-weight:700">Comments</div>
+          <div class="muted" id="commentsSubtitle">Room thread</div>
+        </div>
+      </div>
+      <div style="margin-top:10px" class="list">
+        <input id="commentAuthor" placeholder="Your name (optional)" />
+        <input id="commentMessage" placeholder="Write a comment…" />
+        <button id="addComment" class="primary">Post</button>
+      </div>
+      <hr />
+      <div id="comments" class="list"></div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
           <div id="artifactsTitle" style="font-weight:700">Artifacts</div>
           <div class="muted" id="artifactsSubtitle">Links to demos (e.g. 3D viewer / HTML sandbox)</div>
         </div>
       </div>
       <div style="margin-top:10px" class="list">
         <input id="artifactTitle" placeholder="Title" />
-        <input id="artifactUrl" placeholder="URL (e.g. http://192.168.0.145:xxxx/demo)" />
+        <input id="artifactUrl" placeholder="URL (optional, paste a link)" />
+        <input id="artifactFile" type="file" />
         <button id="addArtifact" class="primary">Add artifact</button>
       </div>
       <hr />
@@ -136,10 +153,17 @@ document.getElementById('notesTitle').textContent = t('room.notes.title');
 document.getElementById('notesSubtitle').textContent = t('room.notes.subtitle');
 document.getElementById('saveNotes').textContent = t('room.notes.save');
 
+document.getElementById('commentsTitle').textContent = t('room.comments.title');
+document.getElementById('commentsSubtitle').textContent = t('room.comments.subtitle');
+document.getElementById('commentAuthor').placeholder = t('room.comments.authorPlaceholder');
+document.getElementById('commentMessage').placeholder = t('room.comments.messagePlaceholder');
+document.getElementById('addComment').textContent = t('room.comments.add');
+
 document.getElementById('artifactsTitle').textContent = t('room.artifacts.title');
 document.getElementById('artifactsSubtitle').textContent = t('room.artifacts.subtitle');
 document.getElementById('artifactTitle').placeholder = t('room.artifacts.titlePlaceholder');
 document.getElementById('artifactUrl').placeholder = t('room.artifacts.urlPlaceholder');
+document.getElementById('artifactFile').setAttribute('title', t('room.artifacts.filePlaceholder'));
 document.getElementById('addArtifact').textContent = t('room.artifacts.add');
 
 document.getElementById('auditTitle').textContent = t('room.audit.title');
@@ -149,7 +173,6 @@ document.getElementById('addAudit').textContent = t('room.audit.add');
 
 document.getElementById('tipShare').textContent = t('tip.share');
 
-// translate option labels
 for (const opt of document.querySelectorAll('#auditKind option')) {
   opt.textContent = t(`kind.${opt.value}`);
 }
@@ -176,6 +199,22 @@ function render(out) {
       <span class="badge ${a.done ? 'ok' : ''}">${escapeHtml(a.done ? t('room.actions.done') : t('room.actions.todo'))}</span>
     `;
     actions.appendChild(div);
+  }
+
+  const comments = document.getElementById('comments');
+  comments.innerHTML = '';
+  for (const c of (out.comments || [])) {
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.style.margin = '0';
+    div.innerHTML = `
+      <div class="row">
+        <span class="badge">${escapeHtml(c.author || t('room.comments.anonymous'))}</span>
+        <span class="muted">${new Date(c.created_at).toLocaleString()}</span>
+      </div>
+      <div class="small" style="margin-top:8px">${escapeHtml(c.message)}</div>
+    `;
+    comments.appendChild(div);
   }
 
   const audit = document.getElementById('audit');
@@ -265,6 +304,17 @@ document.getElementById('saveNotes').addEventListener('click', async () => {
 });
 
 
+document.getElementById('addComment').addEventListener('click', async () => {
+  const author = document.getElementById('commentAuthor').value.trim();
+  const msgEl = document.getElementById('commentMessage');
+  const message = msgEl.value.trim();
+  if (!message) return;
+  await api(`/api/rooms/${roomId}/comments`, { method: 'POST', body: JSON.stringify({ author: author || undefined, message }) });
+  msgEl.value = '';
+  await load();
+});
+
+
 document.getElementById('addAudit').addEventListener('click', async () => {
   const kind = document.getElementById('auditKind').value;
   const msgEl = document.getElementById('auditMsg');
@@ -279,11 +329,38 @@ document.getElementById('addAudit').addEventListener('click', async () => {
 document.getElementById('addArtifact').addEventListener('click', async () => {
   const title = document.getElementById('artifactTitle').value.trim();
   const url = document.getElementById('artifactUrl').value.trim();
-  if (!title || !url) return;
-  await api(`/api/rooms/${roomId}/artifacts`, { method: 'POST', body: JSON.stringify({ title, url }) });
-  document.getElementById('artifactTitle').value = '';
-  document.getElementById('artifactUrl').value = '';
-  await load();
+  const fileEl = document.getElementById('artifactFile');
+  const file = fileEl.files && fileEl.files[0];
+
+  // Link-based artifact
+  if (url) {
+    if (!title) return;
+    await api(`/api/rooms/${roomId}/artifacts`, { method: 'POST', body: JSON.stringify({ title, url }) });
+    document.getElementById('artifactTitle').value = '';
+    document.getElementById('artifactUrl').value = '';
+    fileEl.value = '';
+    await load();
+    return;
+  }
+
+  // Upload-based artifact
+  if (file) {
+    const form = new FormData();
+    form.append('title', title || file.name);
+    form.append('file', file, file.name);
+
+    const res = await fetch(`/api/rooms/${roomId}/artifacts/upload`, { method: 'POST', body: form });
+    if (!res.ok) throw new Error(await res.text());
+
+    document.getElementById('artifactTitle').value = '';
+    document.getElementById('artifactUrl').value = '';
+    fileEl.value = '';
+    await load();
+    return;
+  }
+
+  // neither
+  return;
 });
 
 load();

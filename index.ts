@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { nanoid } from "nanoid";
+import Busboy from "busboy";
 import type { OpenClawPluginApi, OpenClawPluginServiceContext } from "openclaw/plugin-sdk";
 
 type PortalConfig = {
@@ -38,18 +39,6 @@ type PortalDb = {
   version: 1;
   rooms: Room[];
   comments: Record<string, Comment[]>;
-  notes: Record<string, { markdown: string; updated_at: string }>;
-  actions: Action[];
-  audit: Audit[];
-  artifacts: Artifact[];
-};
-type Action = { id: string; room_id: string; text: string; done: boolean; created_at: string; updated_at: string };
-type Audit = { id: string; room_id: string; kind: string; message: string; created_at: string };
-type Artifact = { id: string; room_id: string; title: string; url: string; created_at: string };
-
-type PortalDb = {
-  version: 1;
-  rooms: Room[];
   notes: Record<string, { markdown: string; updated_at: string }>;
   actions: Action[];
   audit: Audit[];
@@ -116,6 +105,7 @@ function loadDb(filePath: string): PortalDb {
     const txt = fs.readFileSync(filePath, "utf8");
     const parsed = JSON.parse(txt);
     if (!parsed || typeof parsed !== "object") throw new Error("bad_db");
+
     return {
       version: 1,
       rooms: Array.isArray(parsed.rooms) ? parsed.rooms : [],
@@ -184,9 +174,57 @@ function roomById(db: PortalDb, id: string): Room | undefined {
   return db.rooms.find((r) => r.id === id);
 }
 
+function parseQuery(req: http.IncomingMessage): URLSearchParams {
+  try {
+    const u = new URL(req.url || "/", `http://${req.headers.host || "local"}`);
+    return u.searchParams;
+  } catch {
+    return new URLSearchParams();
+  }
+}
+
+function sanitizeFilename(name: string): string {
+  const base = path.basename(name || "upload");
+  return base.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "upload";
+}
+
+async function handleMultipartUpload(req: http.IncomingMessage): Promise<{ fields: Record<string, string>; file?: { filename: string; mimeType: string; buf: Buffer } }> {
+  const bb = Busboy({ headers: req.headers, limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 10 } });
+  const fields: Record<string, string> = {};
+  let file: { filename: string; mimeType: string; buf: Buffer } | undefined;
+
+  await new Promise<void>((resolve, reject) => {
+    bb.on("field", (name, val) => {
+      fields[name] = String(val ?? "");
+    });
+
+    bb.on("file", (_name, stream, info) => {
+      const chunks: Buffer[] = [];
+      stream.on("data", (d: Buffer) => chunks.push(d));
+      stream.on("limit", () => reject(new Error("file_too_large")));
+      stream.on("end", () => {
+        file = {
+          filename: sanitizeFilename(info.filename || "upload"),
+          mimeType: info.mimeType || "application/octet-stream",
+          buf: Buffer.concat(chunks),
+        };
+      });
+      stream.on("error", reject);
+    });
+
+    bb.on("finish", () => resolve());
+    bb.on("error", reject);
+
+    req.pipe(bb);
+  });
+
+  return { fields, file };
+}
+
 export default function (api: OpenClawPluginApi) {
   api.registerService({
     id: "pocket-portal",
+
     async start(ctx) {
       const cfg = ConfigSchema.parse(api.pluginConfig ?? {}) as PortalConfig;
       if (!cfg.enabled) {
@@ -237,6 +275,20 @@ export default function (api: OpenClawPluginApi) {
             return;
           }
 
+          // Uploaded files (stored under state dir)
+          if (req.method === "GET" && pathname.startsWith("/uploads/")) {
+            const rel = pathname.slice("/uploads/".length);
+            const uploadsDir = path.join(ctx.stateDir, "pocket-portal", "uploads");
+            const fp = path.resolve(uploadsDir, rel);
+            if (!fp.startsWith(path.resolve(uploadsDir) + path.sep) && fp !== path.resolve(uploadsDir)) {
+              res.statusCode = 400;
+              res.end("Bad Request");
+              return;
+            }
+            sendFile(res, fp);
+            return;
+          }
+
           // API
           if (pathname === "/api/health") {
             const db = loadDb(dataPath);
@@ -254,10 +306,8 @@ export default function (api: OpenClawPluginApi) {
           if (pathname === "/api/rooms" && req.method === "POST") {
             const body = await readBody(req);
             const parsed = z.object({ title: z.string().min(1).max(200) }).safeParse(JSON.parse(body || "{}"));
-            if (!parsed.success) {
-              sendJson(res, 400, { error: parsed.error.flatten() });
-              return;
-            }
+            if (!parsed.success) return sendJson(res, 400, { error: parsed.error.flatten() });
+
             const db = loadDb(dataPath);
             const id = nanoid();
             const ts = now();
@@ -275,30 +325,34 @@ export default function (api: OpenClawPluginApi) {
             const roomId = roomIdMatch[1];
             const db = loadDb(dataPath);
             const room = roomById(db, roomId);
-            if (!room) {
-              sendJson(res, 404, { error: "not_found" });
-              return;
-            }
+            if (!room) return sendJson(res, 404, { error: "not_found" });
+
             const note = db.notes[roomId] ?? { markdown: "", updated_at: null };
             const actions = db.actions.filter((a) => a.room_id === roomId).sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-            const audit = db.audit.filter((e) => e.room_id === roomId).sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 200);
+            const audit = db.audit
+              .filter((e) => e.room_id === roomId)
+              .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+              .slice(0, 200);
             const artifacts = db.artifacts.filter((a) => a.room_id === roomId).sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-            const comments = db.comments[roomId] || [];
+            const comments = (db.comments[roomId] || []).slice(-200);
+
             sendJson(res, 200, { room, note, actions, audit, artifacts, comments });
             return;
           }
 
           const titleMatch = pathname.match(/^\/api\/rooms\/([^/]+)\/title$/);
           if (titleMatch && req.method === "POST") {
+            const roomId = titleMatch[1];
             const body = await readBody(req);
-            const parsed = z.object({ title: z.string().min(1).max(200), tags: z.array(z.string()).optional() }).safeParse(JSON.parse(body || "{}"));
-            if (!parsed.success) {
-              sendJson(res, 400, { error: parsed.error.flatten() });
-              return;
-            }
+            const parsed = z
+              .object({ title: z.string().min(1).max(200), tags: z.array(z.string()).optional() })
+              .safeParse(JSON.parse(body || "{}"));
+            if (!parsed.success) return sendJson(res, 400, { error: parsed.error.flatten() });
+
             const db = loadDb(dataPath);
             const room = roomById(db, roomId);
             if (!room) return sendJson(res, 404, { error: "not_found" });
+
             room.title = parsed.data.title;
             if (parsed.data.tags) room.tags = parsed.data.tags;
             room.updated_at = now();
@@ -321,48 +375,32 @@ export default function (api: OpenClawPluginApi) {
           if (tagsMatch && req.method === "POST") {
             const roomId = tagsMatch[1];
             const body = await readBody(req);
-            const parsed = z.object({ tags: z.array(z.string()).min(0) }).safeParse(JSON.parse(body || "{}"));
-            if (!parsed.success) {
-              sendJson(res, 400, { error: parsed.error.flatten() });
-              return;
-            }
+            const parsed = z.object({ tags: z.array(z.string()).min(0).max(25) }).safeParse(JSON.parse(body || "{}"));
+            if (!parsed.success) return sendJson(res, 400, { error: parsed.error.flatten() });
+
             const db = loadDb(dataPath);
             const room = roomById(db, roomId);
             if (!room) return sendJson(res, 404, { error: "not_found" });
+
             room.tags = parsed.data.tags;
             room.updated_at = now();
-            db.audit.push({ id: nanoid(), room_id: roomId, kind: "edit", message: `Tags updated: ${parsed.data.tags.join(', ')}`, created_at: room.updated_at });
+            db.audit.push({ id: nanoid(), room_id: roomId, kind: "edit", message: `Tags updated: ${parsed.data.tags.join(", ")}`, created_at: room.updated_at });
             saveDb(dataPath, db);
             sendJson(res, 200, { ok: true });
             return;
           }
 
-          const searchMatch = pathname.match(/^\/api\/search$/);
-          if (searchMatch && req.method === "GET") {
-            const query = req.url?.split('?')[1]?.split('=')[1] || '';
+          if (pathname === "/api/search" && req.method === "GET") {
+            const q = (parseQuery(req).get("query") || "").trim().toLowerCase();
             const db = loadDb(dataPath);
-            const filteredRooms = db.rooms.filter(room => 
-              room.title.toLowerCase().includes(query.toLowerCase()) ||
-              room.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase()))
-            ).sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
-            sendJson(res, 200, { rooms: filteredRooms });
-            return;
-          }
-            const roomId = titleMatch[1];
-            const body = await readBody(req);
-            const parsed = z.object({ title: z.string().min(1).max(200) }).safeParse(JSON.parse(body || "{}"));
-            if (!parsed.success) {
-              sendJson(res, 400, { error: parsed.error.flatten() });
-              return;
-            }
-            const db = loadDb(dataPath);
-            const room = roomById(db, roomId);
-            if (!room) return sendJson(res, 404, { error: "not_found" });
-            room.title = parsed.data.title;
-            room.updated_at = now();
-            db.audit.push({ id: nanoid(), room_id: roomId, kind: "edit", message: `Title changed to: ${parsed.data.title}`, created_at: room.updated_at });
-            saveDb(dataPath, db);
-            sendJson(res, 200, { ok: true });
+            const rooms = db.rooms
+              .filter((room) => {
+                if (!q) return true;
+                if (room.title.toLowerCase().includes(q)) return true;
+                return (room.tags || []).some((tag) => tag.toLowerCase().includes(q));
+              })
+              .sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
+            sendJson(res, 200, { rooms });
             return;
           }
 
@@ -371,13 +409,12 @@ export default function (api: OpenClawPluginApi) {
             const roomId = notesMatch[1];
             const body = await readBody(req);
             const parsed = z.object({ markdown: z.string().max(200_000) }).safeParse(JSON.parse(body || "{}"));
-            if (!parsed.success) {
-              sendJson(res, 400, { error: parsed.error.flatten() });
-              return;
-            }
+            if (!parsed.success) return sendJson(res, 400, { error: parsed.error.flatten() });
+
             const db = loadDb(dataPath);
             const room = roomById(db, roomId);
             if (!room) return sendJson(res, 404, { error: "not_found" });
+
             const ts = now();
             db.notes[roomId] = { markdown: parsed.data.markdown, updated_at: ts };
             room.updated_at = ts;
@@ -392,13 +429,12 @@ export default function (api: OpenClawPluginApi) {
             const roomId = actionsMatch[1];
             const body = await readBody(req);
             const parsed = z.object({ text: z.string().min(1).max(500) }).safeParse(JSON.parse(body || "{}"));
-            if (!parsed.success) {
-              sendJson(res, 400, { error: parsed.error.flatten() });
-              return;
-            }
+            if (!parsed.success) return sendJson(res, 400, { error: parsed.error.flatten() });
+
             const db = loadDb(dataPath);
             const room = roomById(db, roomId);
             if (!room) return sendJson(res, 404, { error: "not_found" });
+
             const ts = now();
             const id = nanoid();
             db.actions.push({ id, room_id: roomId, text: parsed.data.text, done: false, created_at: ts, updated_at: ts });
@@ -415,34 +451,54 @@ export default function (api: OpenClawPluginApi) {
             const db = loadDb(dataPath);
             const action = db.actions.find((a) => a.id === actionId);
             if (!action) return sendJson(res, 404, { error: "not_found" });
+
             const ts = now();
             action.done = !action.done;
             action.updated_at = ts;
             const room = roomById(db, action.room_id);
             if (room) room.updated_at = ts;
-            db.audit.push({ id: nanoid(), room_id: action.room_id, kind: "action", message: `Action ${action.done ? "done" : "undone"}: ${action.text}`, created_at: ts });
+
+            db.audit.push({
+              id: nanoid(),
+              room_id: action.room_id,
+              kind: "action",
+              message: `Action ${action.done ? "done" : "undone"}: ${action.text}`,
+              created_at: ts,
+            });
+
             saveDb(dataPath, db);
             sendJson(res, 200, { ok: true, done: action.done });
             return;
           }
 
-          const auditMatch = pathname.match(/^\/api\/rooms\/([^/]+)\/audit$/);
-          if (auditMatch && req.method === "POST") {
-            const roomId = auditMatch[1];
-            const body = await readBody(req);
-            const parsed = z.object({ kind: z.string().min(1).max(50).default("note"), message: z.string().min(1).max(2000) }).safeParse(JSON.parse(body || "{}"));
-            if (!parsed.success) {
-              sendJson(res, 400, { error: parsed.error.flatten() });
-              return;
-            }
+          const artifactUploadMatch = pathname.match(/^\/api\/rooms\/([^/]+)\/artifacts\/upload$/);
+          if (artifactUploadMatch && req.method === "POST") {
+            const roomId = artifactUploadMatch[1];
             const db = loadDb(dataPath);
             const room = roomById(db, roomId);
             if (!room) return sendJson(res, 404, { error: "not_found" });
+
+            const { fields, file } = await handleMultipartUpload(req);
+            if (!file) return sendJson(res, 400, { error: "no_file" });
+
+            const title = String(fields.title || file.filename).trim().slice(0, 200);
             const ts = now();
-            db.audit.push({ id: nanoid(), room_id: roomId, kind: parsed.data.kind, message: parsed.data.message, created_at: ts });
+            const id = nanoid();
+
+            const uploadsDir = path.join(ctx.stateDir, "pocket-portal", "uploads", roomId);
+            fs.mkdirSync(uploadsDir, { recursive: true });
+            const diskName = `${id}-${file.filename}`;
+            const diskPath = path.join(uploadsDir, diskName);
+            fs.writeFileSync(diskPath, file.buf);
+
+            const url = withBase(basePath, `/uploads/${encodeURIComponent(roomId)}/${encodeURIComponent(diskName)}`);
+
+            db.artifacts.push({ id, room_id: roomId, title, url, created_at: ts });
             room.updated_at = ts;
+            db.audit.push({ id: nanoid(), room_id: roomId, kind: "artifact", message: `Artifact uploaded: ${title}`, created_at: ts });
             saveDb(dataPath, db);
-            sendJson(res, 200, { ok: true });
+
+            sendJson(res, 200, { id, url });
             return;
           }
 
@@ -451,13 +507,12 @@ export default function (api: OpenClawPluginApi) {
             const roomId = artifactsMatch[1];
             const body = await readBody(req);
             const parsed = z.object({ title: z.string().min(1).max(200), url: z.string().min(1).max(2000) }).safeParse(JSON.parse(body || "{}"));
-            if (!parsed.success) {
-              sendJson(res, 400, { error: parsed.error.flatten() });
-              return;
-            }
+            if (!parsed.success) return sendJson(res, 400, { error: parsed.error.flatten() });
+
             const db = loadDb(dataPath);
             const room = roomById(db, roomId);
             if (!room) return sendJson(res, 404, { error: "not_found" });
+
             const ts = now();
             const id = nanoid();
             db.artifacts.push({ id, room_id: roomId, title: parsed.data.title, url: parsed.data.url, created_at: ts });
@@ -465,6 +520,27 @@ export default function (api: OpenClawPluginApi) {
             db.audit.push({ id: nanoid(), room_id: roomId, kind: "artifact", message: `Artifact added: ${parsed.data.title}`, created_at: ts });
             saveDb(dataPath, db);
             sendJson(res, 200, { id });
+            return;
+          }
+
+          const auditMatch = pathname.match(/^\/api\/rooms\/([^/]+)\/audit$/);
+          if (auditMatch && req.method === "POST") {
+            const roomId = auditMatch[1];
+            const body = await readBody(req);
+            const parsed = z
+              .object({ kind: z.string().min(1).max(50).default("note"), message: z.string().min(1).max(2000) })
+              .safeParse(JSON.parse(body || "{}"));
+            if (!parsed.success) return sendJson(res, 400, { error: parsed.error.flatten() });
+
+            const db = loadDb(dataPath);
+            const room = roomById(db, roomId);
+            if (!room) return sendJson(res, 404, { error: "not_found" });
+
+            const ts = now();
+            db.audit.push({ id: nanoid(), room_id: roomId, kind: parsed.data.kind, message: parsed.data.message, created_at: ts });
+            room.updated_at = ts;
+            saveDb(dataPath, db);
+            sendJson(res, 200, { ok: true });
             return;
           }
 
@@ -474,48 +550,29 @@ export default function (api: OpenClawPluginApi) {
             const db = loadDb(dataPath);
             const room = roomById(db, roomId);
             if (!room) return sendJson(res, 404, { error: "not_found" });
-            const comments = db.comments[roomId] || [];
-            sendJson(res, 200, { comments });
+            sendJson(res, 200, { comments: (db.comments[roomId] || []).slice(-200) });
             return;
           }
 
           if (commentsMatch && req.method === "POST") {
             const roomId = commentsMatch[1];
             const body = await readBody(req);
-            const parsed = z.object({ author: z.string().optional(), message: z.string().min(1).max(2000) }).safeParse(JSON.parse(body || "{}"));
-            if (!parsed.success) {
-              sendJson(res, 400, { error: parsed.error.flatten() });
-              return;
-            }
+            const parsed = z
+              .object({ author: z.string().max(80).optional(), message: z.string().min(1).max(2000) })
+              .safeParse(JSON.parse(body || "{}"));
+            if (!parsed.success) return sendJson(res, 400, { error: parsed.error.flatten() });
+
             const db = loadDb(dataPath);
             const room = roomById(db, roomId);
             if (!room) return sendJson(res, 404, { error: "not_found" });
+
             const ts = now();
             const id = nanoid();
             const comment: Comment = { id, room_id: roomId, author: parsed.data.author, message: parsed.data.message, created_at: ts };
             if (!db.comments[roomId]) db.comments[roomId] = [];
             db.comments[roomId].push(comment);
             room.updated_at = ts;
-            db.audit.push({ id: nanoid(), room_id: roomId, kind: "comment", message: `Comment added: ${parsed.data.message.substring(0, 50)}...`, created_at: ts });
-            saveDb(dataPath, db);
-            sendJson(res, 200, { id });
-            return;
-          }
-            const roomId = artifactsMatch[1];
-            const body = await readBody(req);
-            const parsed = z.object({ title: z.string().min(1).max(200), url: z.string().min(1).max(2000) }).safeParse(JSON.parse(body || "{}"));
-            if (!parsed.success) {
-              sendJson(res, 400, { error: parsed.error.flatten() });
-              return;
-            }
-            const db = loadDb(dataPath);
-            const room = roomById(db, roomId);
-            if (!room) return sendJson(res, 404, { error: "not_found" });
-            const ts = now();
-            const id = nanoid();
-            db.artifacts.push({ id, room_id: roomId, title: parsed.data.title, url: parsed.data.url, created_at: ts });
-            room.updated_at = ts;
-            db.audit.push({ id: nanoid(), room_id: roomId, kind: "artifact", message: `Artifact added: ${parsed.data.title}`, created_at: ts });
+            db.audit.push({ id: nanoid(), room_id: roomId, kind: "comment", message: `Comment added: ${parsed.data.message.substring(0, 80)}`, created_at: ts });
             saveDb(dataPath, db);
             sendJson(res, 200, { id });
             return;
