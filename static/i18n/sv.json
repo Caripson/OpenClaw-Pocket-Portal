@@ -59,6 +59,13 @@
 
   "tip.share": "Tips: dela alltid en URL som pekar på exakt rum + artifact/action.",
 
+  "viewer.title": "3D-visare",
+  "viewer.back": "← Rum",
+  "viewer.openRaw": "Öppna råfil",
+  "viewer.reload": "Ladda om",
+  "viewer.hint": "Tips: GLB funkar bäst (en fil). Vanlig .gltf kan peka på externa .bin/texturer som måste vara nåbara.",
+  "viewer.noSrc": "Ingen model-länk (src) angiven.",
+
   "kind.decision": "decision",
   "kind.note": "note",
   "kind.question": "question",
