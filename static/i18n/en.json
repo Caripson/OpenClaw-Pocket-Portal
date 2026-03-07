@@ -17,6 +17,11 @@
   "home.search.label": "Search",
   "home.search.placeholder": "Search rooms (title or tags)…",
 
+  "home.export.title": "Export / backup",
+  "home.export.subtitle": "Download your data",
+  "home.export.json": "JSON",
+  "home.export.md": "Markdown",
+
   "room.tags.title": "Tags",
   "room.tags.subtitle": "Comma-separated",
   "room.tags.placeholder": "e.g. cms, 3d, nextgen",

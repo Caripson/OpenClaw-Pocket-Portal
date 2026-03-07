@@ -17,6 +17,11 @@
   "home.search.label": "Sök",
   "home.search.placeholder": "Sök rum (titel eller taggar)…",
 
+  "home.export.title": "Export / backup",
+  "home.export.subtitle": "Ladda ner din data",
+  "home.export.json": "JSON",
+  "home.export.md": "Markdown",
+
   "room.tags.title": "Taggar",
   "room.tags.subtitle": "Kommaseparerat",
   "room.tags.placeholder": "t.ex. cms, 3d, nextgen",

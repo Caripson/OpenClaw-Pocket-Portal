@@ -19,6 +19,7 @@ button.ghost{background:transparent;border-color:#223}
 .badge.ok{border-color:rgba(51,209,122,.35);color:var(--ok)}
 .badge.bad{border-color:rgba(255,107,107,.35);color:var(--bad)}
 .list{display:flex;flex-direction:column;gap:8px}
+.btnRow{display:flex;gap:10px;flex-wrap:wrap}
 .item{display:flex;gap:10px;align-items:flex-start}
 .item .grow{flex:1}
 hr{border:none;border-top:1px solid #223;margin:12px 0}

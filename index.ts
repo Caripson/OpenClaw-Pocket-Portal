@@ -45,6 +45,79 @@ type PortalDb = {
   artifacts: Artifact[];
 };
 
+function mdEscape(s: string): string {
+  return String(s).replaceAll("\r", "").replaceAll("\n", " ");
+}
+
+function toMarkdownExport(db: PortalDb): string {
+  const rooms = [...db.rooms].sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
+  const lines: string[] = [];
+
+  lines.push(`# Pocket Portal export`);
+  lines.push("");
+  lines.push(`Generated: ${now()}`);
+  lines.push("");
+
+  for (const r of rooms) {
+    lines.push(`## ${mdEscape(r.title)}  `);
+    lines.push(`ID: \\`${r.id}\\``);
+    lines.push(`Created: ${r.created_at}`);
+    lines.push(`Updated: ${r.updated_at}`);
+    if (r.tags?.length) lines.push(`Tags: ${r.tags.map((t) => `\\`${mdEscape(t)}\\``).join(" ")}`);
+    lines.push("");
+
+    const note = db.notes[r.id]?.markdown || "";
+    if (note.trim()) {
+      lines.push(`### Notes`);
+      lines.push("");
+      lines.push(note);
+      lines.push("");
+    }
+
+    const actions = db.actions.filter((a) => a.room_id === r.id).sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    if (actions.length) {
+      lines.push(`### Actions`);
+      lines.push("");
+      for (const a of actions) {
+        lines.push(`- [${a.done ? "x" : " "}] ${mdEscape(a.text)} (id: \\`${a.id}\\`)`);
+      }
+      lines.push("");
+    }
+
+    const artifacts = db.artifacts.filter((a) => a.room_id === r.id).sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    if (artifacts.length) {
+      lines.push(`### Artifacts`);
+      lines.push("");
+      for (const ar of artifacts) {
+        lines.push(`- ${mdEscape(ar.title)} — ${ar.url}`);
+      }
+      lines.push("");
+    }
+
+    const comments = (db.comments[r.id] || []).slice(-200);
+    if (comments.length) {
+      lines.push(`### Comments`);
+      lines.push("");
+      for (const c of comments) {
+        lines.push(`- ${mdEscape(c.author || "Anonymous")} @ ${c.created_at}: ${mdEscape(c.message)}`);
+      }
+      lines.push("");
+    }
+
+    const audit = db.audit.filter((e) => e.room_id === r.id).sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 200);
+    if (audit.length) {
+      lines.push(`### Audit`);
+      lines.push("");
+      for (const e of audit) {
+        lines.push(`- ${mdEscape(e.kind)} @ ${e.created_at}: ${mdEscape(e.message)}`);
+      }
+      lines.push("");
+    }
+  }
+
+  return lines.join("\n");
+}
+
 function now(): string {
   return new Date().toISOString();
 }
@@ -61,6 +134,19 @@ function sendJson(res: http.ServerResponse, code: number, payload: unknown) {
   res.setHeader("content-type", "application/json; charset=utf-8");
   res.setHeader("cache-control", "no-store");
   res.end(body);
+}
+
+function sendText(res: http.ServerResponse, code: number, body: string, contentType = "text/plain; charset=utf-8") {
+  res.statusCode = code;
+  res.setHeader("content-type", contentType);
+  res.setHeader("cache-control", "no-store");
+  res.end(body);
+}
+
+function setDownloadHeaders(res: http.ServerResponse, filename: string, contentType: string) {
+  res.setHeader("content-type", contentType);
+  res.setHeader("content-disposition", `attachment; filename="${filename.replaceAll('"', '')}"`);
+  res.setHeader("cache-control", "no-store");
 }
 
 function readBody(req: http.IncomingMessage): Promise<string> {
@@ -299,6 +385,25 @@ export default function (api: OpenClawPluginApi) {
           if (pathname === "/api/health") {
             const db = loadDb(dataPath);
             sendJson(res, 200, { ok: true, ts: now(), version: "0.1.0", db: { ok: true, rooms: db.rooms.length } });
+            return;
+          }
+
+          // Export / backup
+          if (pathname === "/api/export/json" && req.method === "GET") {
+            const db = loadDb(dataPath);
+            const filename = `pocket-portal-export-${new Date().toISOString().slice(0, 10)}.json`;
+            setDownloadHeaders(res, filename, "application/json; charset=utf-8");
+            res.statusCode = 200;
+            res.end(JSON.stringify(db, null, 2));
+            return;
+          }
+
+          if (pathname === "/api/export/markdown" && req.method === "GET") {
+            const db = loadDb(dataPath);
+            const filename = `pocket-portal-export-${new Date().toISOString().slice(0, 10)}.md`;
+            setDownloadHeaders(res, filename, "text/markdown; charset=utf-8");
+            res.statusCode = 200;
+            res.end(toMarkdownExport(db));
             return;
           }
 

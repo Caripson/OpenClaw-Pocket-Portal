@@ -44,6 +44,19 @@
       <div id="rooms" class="list"></div>
     </div>
 
+    <div class="card">
+      <div class="row">
+        <div>
+          <div id="exportTitle" style="font-weight:700">Export / backup</div>
+          <div class="muted" id="exportSubtitle">Download your data</div>
+        </div>
+      </div>
+      <div style="margin-top:10px" class="btnRow">
+        <a class="badge" id="exportJson" href="/api/export/json">JSON</a>
+        <a class="badge" id="exportMd" href="/api/export/markdown">Markdown</a>
+      </div>
+    </div>
+
     <div class="footer">v0.1 · Local-first · Johan + Moneypenny</div>
   </div>
 
@@ -72,6 +85,11 @@ document.getElementById('refreshBtn').textContent = t('home.rooms.refresh');
 
 document.getElementById('searchLabel').textContent = t('home.search.label');
 document.getElementById('searchInput').placeholder = t('home.search.placeholder');
+
+document.getElementById('exportTitle').textContent = t('home.export.title');
+document.getElementById('exportSubtitle').textContent = t('home.export.subtitle');
+document.getElementById('exportJson').textContent = t('home.export.json');
+document.getElementById('exportMd').textContent = t('home.export.md');
 
 function elRoom(r) {
   const a = document.createElement('a');
