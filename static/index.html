@@ -54,6 +54,7 @@
       <div style="margin-top:10px" class="btnRow">
         <a class="badge" id="exportJson" href="/api/export/json">JSON</a>
         <a class="badge" id="exportMd" href="/api/export/markdown">Markdown</a>
+        <a class="badge" id="exportZip" href="/api/export/zip">Zip (JSON+MD+uploads)</a>
       </div>
     </div>
 
@@ -90,6 +91,7 @@ document.getElementById('exportTitle').textContent = t('home.export.title');
 document.getElementById('exportSubtitle').textContent = t('home.export.subtitle');
 document.getElementById('exportJson').textContent = t('home.export.json');
 document.getElementById('exportMd').textContent = t('home.export.md');
+document.getElementById('exportZip').textContent = t('home.export.zip');
 
 function elRoom(r) {
   const a = document.createElement('a');

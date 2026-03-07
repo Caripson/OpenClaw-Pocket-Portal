@@ -21,6 +21,7 @@
   "home.export.subtitle": "Download your data",
   "home.export.json": "JSON",
   "home.export.md": "Markdown",
+  "home.export.zip": "Zip (JSON+MD+uploads)",
 
   "room.tags.title": "Tags",
   "room.tags.subtitle": "Comma-separated",

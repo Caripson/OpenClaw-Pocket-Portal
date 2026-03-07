@@ -1,6 +1,8 @@
 import http from "node:http";
 import path from "node:path";
 import fs from "node:fs";
+import os from "node:os";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { nanoid } from "nanoid";
@@ -213,6 +215,14 @@ function saveDb(filePath: string, db: PortalDb) {
   fs.renameSync(tmp, filePath);
 }
 
+function safeRmDir(p: string) {
+  try {
+    fs.rmSync(p, { recursive: true, force: true });
+  } catch {
+    // ignore
+  }
+}
+
 function getStaticDir(): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
   return path.join(here, "static");
@@ -405,6 +415,41 @@ export default function (api: OpenClawPluginApi) {
             res.statusCode = 200;
             res.end(toMarkdownExport(db));
             return;
+          }
+
+          if (pathname === "/api/export/zip" && req.method === "GET") {
+            const db = loadDb(dataPath);
+            const day = new Date().toISOString().slice(0, 10);
+            const filename = `pocket-portal-backup-${day}.zip`;
+
+            const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pocket-portal-"));
+            try {
+              // Write exports
+              fs.writeFileSync(path.join(tmpDir, `pocket-portal-export-${day}.json`), JSON.stringify(db, null, 2), "utf8");
+              fs.writeFileSync(path.join(tmpDir, `pocket-portal-export-${day}.md`), toMarkdownExport(db), "utf8");
+
+              // Include uploads directory if present
+              const uploadsDir = path.join(ctx.stateDir, "pocket-portal", "uploads");
+              if (fs.existsSync(uploadsDir)) {
+                fs.cpSync(uploadsDir, path.join(tmpDir, "uploads"), { recursive: true });
+              }
+
+              const zipPath = path.join(tmpDir, filename);
+              const out = spawnSync("/usr/bin/zip", ["-r", "-q", zipPath, "."], { cwd: tmpDir, encoding: "utf8" });
+              if (out.status !== 0) {
+                api.logger.error(`[pocket-portal] zip failed: ${out.stderr || out.stdout || "unknown"}`);
+                sendJson(res, 500, { ok: false, error: "zip_failed" });
+                return;
+              }
+
+              setDownloadHeaders(res, filename, "application/zip");
+              res.statusCode = 200;
+              fs.createReadStream(zipPath).pipe(res);
+              return;
+            } finally {
+              // best-effort cleanup (after stream is created it's ok to delete tmpDir on macOS: file handle stays)
+              safeRmDir(tmpDir);
+            }
           }
 
           if (pathname === "/api/rooms" && req.method === "GET") {
